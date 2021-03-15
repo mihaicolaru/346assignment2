@@ -4,19 +4,24 @@ import java.util.Queue;
 public class User{
     //user variables
     private char userID;
-    private int numReady;
-    private Queue<Process> Processes = new LinkedList<>();
+    private Queue<Process> WaitingProcesses = new LinkedList<>();
+    private Queue<Process> ReadyProcesses = new LinkedList<>();
 
     //constructor
     public User(char userID) {
-        this.numReady = 0;
         this.userID = userID;
     }
 
+    public Queue<Process> getReadyProcesses() {
+        return ReadyProcesses;
+    }
+
+    public void setReadyProcesses(Queue<Process> readyProcesses) {
+        ReadyProcesses = readyProcesses;
+    }
+
     //getters and setters
-    public int getNumReady(){ return numReady; }
-    public Queue<Process> getProcesses() { return Processes; }
-    public void setNumReady(int numReady){ this.numReady = numReady;}
+    public Queue<Process> getWaitingProcesses() { return WaitingProcesses; }
 
     public char getUserID() {
         return userID;

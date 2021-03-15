@@ -5,48 +5,42 @@
 //no priority in users or processes
 import java.util.*;
 import java.io.*;
-import java.time.*;
 
 public class Scheduler implements Runnable{
-    //scheduler variables
+    //scheduler instance variables
     private boolean nextCycle;
-    private boolean userFound;
-    private int numUsers;
-    private int numProcesses;
-    private int processQuantum;
-    private int userQuantum;
+    private int readyUserNum;
+    private int processQuantum; //quantum provided to the process
+    private int userQuantum; //quantum provided to user
     private int quantum;
-    private long start;
     private Queue<User> UserQueue;
-    private Queue<Process> readyQueue;
-    private Map<String, Integer[]> process_quantum;
+    private Queue<Process> readyProcessQueue;
+    private Queue<Thread> ProcessThreadQueue;
+    private Map<String, Integer> process_quantum;
+
 
     //scheduler constructor calls InputReader to instantiate users and processes
     public Scheduler(){
         this.nextCycle = false;
-        this.userFound = false;
-        this.numUsers = 0;
-        this.numProcesses = 0;
+        this.readyUserNum = 0;
         this.processQuantum = 0;
         this.userQuantum = 0;
         this.quantum = 0;
-        this.start = 0;
         this.UserQueue = new LinkedList<>();
-        this.readyQueue = new LinkedList<>();
+        this.readyProcessQueue = new LinkedList<>();
+        this.ProcessThreadQueue = new LinkedList<>();
         this.process_quantum = new HashMap<>();
         InputReader();
     }
 
-    public void setQuantum(int quantum) {
-        this.quantum = quantum;
-    }
+
 
     //reads input from Input.txt
     public void InputReader(){
         try {
             File file = new File("Input.txt");
             Scanner scan = new Scanner(file);
-            setQuantum(scan.nextInt());
+            quantum = scan.nextInt();
             while(scan.hasNextLine()){
                 char temp = (scan.next()).charAt(0);
                 if((65 <= temp && temp<= 90) || (97 <= temp && temp<= 122)) //if a letter
@@ -55,12 +49,16 @@ public class Scheduler implements Runnable{
                     UserQueue.add(NewUser); //add new user to the queue
                     temp = (scan.next()).charAt(0); //number of processes
                     for (int i = 0; i < (temp-48); i++) { //loop and find ready and service time for each process
-                       Process NewProcess = new Process(); //create new process
-                       NewProcess.setReadyTime(scan.nextInt());
-                       NewProcess.setServiceTime(scan.nextInt());
-                       NewProcess.setProcessID(i);
-                       NewProcess.setUserID(NewUser.getUserID());
-                        NewUser.getProcesses().add(NewProcess);
+                        Process newProcess = new Process(); //create new process
+                        newProcess.setReadyTime(scan.nextInt());
+                        newProcess.setServiceTime(scan.nextInt());
+                        newProcess.setProcessID("User " + NewUser.getUserID() + ", Process " + i);
+                        newProcess.setUserID(NewUser.getUserID());
+                        NewUser.getWaitingProcesses().add(newProcess);
+
+                        Thread process = new Thread(newProcess);
+                        process.setName(newProcess.getProcessID());
+                        ProcessThreadQueue.add(process);
                     }
                 }
             }
@@ -82,129 +80,134 @@ public class Scheduler implements Runnable{
         }
     }
 
+    //first method in cycle
+    public void ProcessSetup(){
+        readyUserNum = 0;
+
+        //find and add all ready processes to user's ready queue
+        for(User user : UserQueue) {
+
+            for (Process process : user.getWaitingProcesses()) {
+                if ((process.getReadyTime() <= Clock.getTime()) && process.getServiceTime() > 0) {
+                    user.getReadyProcesses().add(process);
+                    user.getWaitingProcesses().remove(process);
+                }
+            }
+            if (!user.getReadyProcesses().isEmpty()) //if user has a ready process
+            {
+                readyUserNum++; //add to the amount of users ready
+            }
+        }//all users have a queue of their ready processes now
+
+        userQuantum = quantum / readyUserNum; //sets a quantum per ready user
+
+        for(User user: UserQueue) { //for every user in user queue
+            if(!user.getReadyProcesses().isEmpty()) { //if user has a ready process
+                processQuantum = userQuantum / user.getReadyProcesses().size(); //sets current process quantum to be given to each process for this user
+                for (Process process : user.getReadyProcesses()) { //for each process that is ready
+                    if(process.getReadyTime() <= Clock.getTime())
+                        readyProcessQueue.add(process);
+                        process_quantum.put(process.getProcessID(), processQuantum); //create hash relation to process and processquantum
+                }
+            }
+
+        }
+    } //every ready process is now in the scheduler's ready queue
+    //each process in scheduler's ready queue has an associated hashcode to its specific quantum
+
+
+
+
+    public void ProcessExecution(){
+        boolean isRunning = false;
+        Process process = readyProcessQueue.peek();//first process in ready queue
+
+            for (int i = 0; i < quantum; i++) {
+                if(process == null) break; //if ready queue is empty break from loop
+                else if (!process.getStarted())
+                {//if process is executed for the first time, print proper message and start thread
+                    for (Thread thread : ProcessThreadQueue) {
+                        if (thread.getName().equals(process.getProcessID())) {
+                            thread.start(); //thread has been started
+                            OutputToFile("Time " + Clock.getTime() + ", " + process.getProcessID() + ", Started", true);
+                            isRunning = false;
+                            process.setStarted(true);
+                            break;
+                        }
+                    }
+                }
+
+                if (!isRunning) {
+                    OutputToFile("Time " + Clock.getTime() + ", " + process.getProcessID() + ", Resumed", true);
+                    isRunning = true;
+                }
+
+                process.run();//decrement service time (to be removed when run function implemented
+                process_quantum.put(process.getProcessID(), process_quantum.get(process.getProcessID()) - 1);//decrement quantum in hash table
+                Clock.Tick(1);
+
+
+                if (process.getServiceTime() == 0 || process_quantum.get(process.getProcessID()) == 0) { //check if process is complete or done quantum
+                    OutputToFile("Time " + Clock.getTime() + ", " + process.getProcessID() + ", Paused", true); //print the process being paused
+                    isRunning = false;
+
+                    if (process.getServiceTime() == 0) {
+
+                        for (Thread thread : ProcessThreadQueue) {
+                            if (thread.getName().equals(process.getProcessID())) {
+                                try {
+                                    thread.join();
+                                    ProcessThreadQueue.remove(thread);
+                                    OutputToFile("Time " + Clock.getTime() + ", " + process.getProcessID() + ", Finished", true); //if process is finished remove it
+                                    isRunning = false;
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+                                break;
+                            }
+                        }
+
+                        for (User user :
+                                UserQueue) {
+                            for (Process myprocess :
+                                    user.getReadyProcesses()) {
+                                if (myprocess == process) {
+                                    user.getReadyProcesses().remove(process);
+                                }
+
+                            }
+
+                        }
+                    }
+                    process_quantum.remove(process.getProcessID());
+                    readyProcessQueue.remove(process);
+                    process = readyProcessQueue.peek(); //finished processes removed and next process assigned
+
+                }
+            }
+            //clear the ready queue
+            readyProcessQueue.clear();
+            //clear process quantum for this round
+            process_quantum.clear();
+
+    }
+
     @Override
     public void run() {
-        //pointer to current system time when scheduler starts executing processes
-        start = System.currentTimeMillis();
 
-        //temporary set time to 1
-        try{
-            Thread.sleep(1000);
-        } catch(Exception e){
-            e.printStackTrace();
-        }
-
+        Clock.Tick(1);
         nextCycle = true;
-
         //process execution cycle
         while(nextCycle){
-            numUsers = 0;//at every cycle the assumed number of users with ready processes is 0
-            numProcesses = 0;//at every cycle the assumed number of ready processes is 0
 
-            //for every process of every user in user queue, if process has reached ready time, add to ready queue
-            for(User User : UserQueue){
-                userFound = false;
-                for(Process process : User.getProcesses()){
-                    if((process.getReadyTime() <= (System.currentTimeMillis() - start) / 1000) && process.getServiceTime() > 0){
-                        readyQueue.add(process);
-                        userFound = true;
-                        numProcesses++;
-                    }
-                }
-                if(userFound) numUsers++;
-                User.setNumReady(numProcesses);
+            ProcessSetup();//assigns quantum per process (all process of a same user have the same quantum)
 
-                numProcesses = 0;
-            }
+            ProcessExecution();//process execution
 
-            //assign time quantum per user
-            userQuantum = 0;
-            if(numUsers != 0){
-                userQuantum = quantum / numUsers;
-            }
-
-            //assign quantum to every process of each user
-            for(User user : UserQueue){
-                processQuantum = 0;//initialize for every user
-                if(user.getNumReady() != 0){//if the user has processes that need executing, the quantum per user is divided between the number of processes
-                    processQuantum = userQuantum / user.getNumReady();
-                }
-
-
-
-                //set quantum to every process (only those in ready queue will run) needs revision
-                for(Process process : user.getProcesses()){
-                    process.setProcessQuantum(processQuantum);
-                }
-            }
-
-            //execute processes in the ready queue
-            for(Process process : readyQueue){
-
-                Thread running = new Thread(process);
-
-                //if process is executing for the first time, output correct message
-                if(!process.getStarted()){
-                    OutputToFile("Time " + (System.currentTimeMillis() - start)/1000 + ", User " + process.getUserID() + ", Process " + process.getProcessID() + ", Started", true);
-                    process.setStarted(true);
-                }
-
-                OutputToFile("Time " + (System.currentTimeMillis() - start)/1000 + ", User " + process.getUserID() + ", Process " + process.getProcessID() + ", Resumed", true);
-
-                //compare ready time to process quantum to see if the process has to execute for its allotted quantum or remaining time
-                if(process.getProcessQuantum() < process.getServiceTime()){
-                    running.start();
-
-                    try{
-                        Thread.sleep(process.getProcessQuantum() * 1000);
-                    } catch(Exception e){
-                        e.printStackTrace();
-                    }
-
-                    try{
-                        running.join(process.getProcessQuantum());
-                        OutputToFile("Time " + (System.currentTimeMillis() - start)/1000 + ", User " + process.getUserID() + ", Process " + process.getProcessID() + ", Paused", true);
-
-                    } catch(Exception e){
-                        e.printStackTrace();
-                    }
-
-                }
-                else{
-                    running.start();
-
-                    try{
-                        Thread.sleep(process.getServiceTime() * 1000);
-                    } catch(Exception e){
-                        e.printStackTrace();
-                    }
-
-                    try{
-                        running.join(process.getServiceTime());
-                        OutputToFile("Time " + (System.currentTimeMillis() - start)/1000 + ", User " + process.getUserID() + ", Process " + process.getProcessID() + ", Paused", true);
-                        OutputToFile("Time " + (System.currentTimeMillis() - start)/1000 + ", User " + process.getUserID() + ", Process " + process.getProcessID() + ", Finished", true);
-
-                    } catch(Exception e){
-                        e.printStackTrace();
-                    }
-                }
-            }
-
-            //clear the ready queue
-            readyQueue.clear();
-
-            nextCycle = false;
-
-            //check if scheduler needs next cycle
-            for(User user : UserQueue){
-                if(nextCycle) break;
-                for(Process process : user.getProcesses()){
-                    if(process.getServiceTime() > 0){
-                        nextCycle = true;
-                        break;
-                    }
-                }
-            }
+            if(ProcessThreadQueue.isEmpty())
+            {
+                nextCycle = false;
+            }//check if scheduler needs next cycle
         }
     }
 }

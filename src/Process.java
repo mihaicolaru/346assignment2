@@ -2,11 +2,11 @@ public class Process implements Runnable{
     //instance variables
     //always positive values
     private char userID;
-    private int processID;
+    private String processID;
     private int readyTime; //when the process is ready
     private int serviceTime; //total CPU usage required by each process
     private boolean started;
-    private int processQuantum;//has to be removed
+    //private int processQuantum;
 
     public Process()
     {
@@ -14,16 +14,13 @@ public class Process implements Runnable{
     }
 
     //getters and setters
-    public int getProcessQuantum(){ return processQuantum; }
-    public void setProcessQuantum(int quantum){ this.processQuantum = quantum; }
-
     public char getUserID(){ return userID; }
     public void setUserID(char ID){ this.userID = ID; }
 
-    public int getProcessID() {
+    public String getProcessID() {
         return processID;
     }
-    public void setProcessID(int processID) {
+    public void setProcessID(String processID) {
         this.processID = processID;
     }
 
@@ -44,11 +41,12 @@ public class Process implements Runnable{
     public boolean getStarted(){ return started;}
     public void setStarted(boolean isStarted){ this.started = isStarted; }
 
-    public void run() {
-        //service time changed according to how long process executes
-        if(getProcessQuantum() < getServiceTime()){
-            setServiceTime(getServiceTime() - getProcessQuantum());
+    public void run()
+    {
+        if(started)
+        {
+            serviceTime--;
         }
-        else setServiceTime(0);
+
     }
 }
