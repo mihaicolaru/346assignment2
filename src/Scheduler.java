@@ -9,6 +9,7 @@ import java.io.*;
 public class Scheduler implements Runnable{
     //scheduler instance variables
     private boolean nextCycle;
+    private boolean isProcessRunning;
     private int readyUserNum;
     private int processQuantum; //quantum provided to the process
     private int userQuantum; //quantum provided to user
@@ -17,7 +18,6 @@ public class Scheduler implements Runnable{
     private Queue<Process> readyProcessQueue;
     private Queue<Thread> ProcessThreadQueue;
     private Map<String, Integer> process_quantum;
-    private boolean isProcessRunning;
 
     //scheduler constructor calls InputReader to instantiate users and processes
     public Scheduler(){
@@ -77,7 +77,7 @@ public class Scheduler implements Runnable{
         }
     }
 
-    //first method in cycle
+    //move ready processes from waiting to ready queue in user and assign user quantum
     public void ProcessSetup(){
         readyUserNum = 0; //find and add all ready processes to user's ready queue
         for(User user : UserQueue) {
@@ -98,10 +98,11 @@ public class Scheduler implements Runnable{
 
         userQuantum = quantum / readyUserNum; //sets a quantum per ready user
 
-
     } //every ready process is now in the scheduler's ready queue
     //each process in scheduler's ready queue has an associated hashcode to its specific quantum
 
+    //asigns quantum to each process
+    //stored in hash map
     public void AssignQuantum() {
         for(User user: UserQueue) { //for every user in user queue
             if(!user.getReadyProcesses().isEmpty()) { //if user has a ready process
@@ -112,10 +113,10 @@ public class Scheduler implements Runnable{
                     process_quantum.put(process.getProcessID(), processQuantum); //create hash relation to process and processquantum
                 }
             }
-
         }
     }
 
+    //called when processes are started for the first time
     public void StartProcess(Process process) {
         if (!process.getStarted())
         {//if process is executed for the first time, print proper message and start thread
@@ -131,27 +132,29 @@ public class Scheduler implements Runnable{
         }
     }
 
+    //called when process is already resumed
     public void RunProcess(Process process) {
-        if (!isProcessRunning) {
+        if (!isProcessRunning) {//if process is not running
             OutputToFile("Time " + Clock.getTime() + ", " + process.getProcessID() + ", Resumed", true);
-            isProcessRunning = true;
+            isProcessRunning = true;//sets process is running
         }
-        process.run();
+        process.run();//process run function is called to decrement service time
         process_quantum.put(process.getProcessID(), process_quantum.get(process.getProcessID()) - 1);//decrement quantum in hash table
     }
 
+    //terminates process when it has reached the end of its time slice or service time
     public void TerminateProcess(Process process) {
         if (process.getServiceTime() == 0 || process_quantum.get(process.getProcessID()) == 0) { //check if process is complete or done quantum
             OutputToFile("Time " + Clock.getTime() + ", " + process.getProcessID() + ", Paused", true); //print the process being paused
-            isProcessRunning = false;
+            isProcessRunning = false; //set process to false to ensure a new process is properly instantiated
 
-            if (process.getServiceTime() == 0) {
+            if (process.getServiceTime() == 0) { //if service time has run out, output process finishing
 
-                for (Thread thread : ProcessThreadQueue) {
+                for (Thread thread : ProcessThreadQueue) {//for each thread in the process thread queue
                     if (thread.getName().equals(process.getProcessID())) {
                         try {
-                            thread.join();
-                            ProcessThreadQueue.remove(thread);
+                            thread.join();//once process is done executing for the entire duration of its service time its thread is joined
+                            ProcessThreadQueue.remove(thread);//thread removed from process thread queue
                             OutputToFile("Time " + Clock.getTime() + ", " + process.getProcessID() + ", Finished", true); //if process is finished remove it
                             isProcessRunning = false;
                         } catch (InterruptedException e) {
@@ -161,22 +164,24 @@ public class Scheduler implements Runnable{
                     }
                 }
 
-                for (User user : UserQueue) {
+                for (User user : UserQueue) { //remove any finished processes from the user ready queue
                     for (Process myprocess :
                             user.getReadyProcesses()) {
                         if (myprocess == process) {
                             user.getReadyProcesses().remove(process);
+                            break;
                         }
                     }
 
                 }
             }
-            process_quantum.remove(process.getProcessID());
-            readyProcessQueue.remove(process);
+            process_quantum.remove(process.getProcessID()); //remove the stored quantum value
+            readyProcessQueue.remove(process); //remove process from scheduler ready queue
 
         }
     }
 
+    //simulate process execution in the cpu
     public void ProcessExecution(){
         Process process = readyProcessQueue.peek();//first process in ready queue
         isProcessRunning = false;

@@ -1,19 +1,14 @@
 public class Clock
 {
-    static private int Clock;
+    static private int Clock; //counter for time elapsed
 
 
-    static public void Start()
+    static public void Start() //function to start initial tick
     {
-        try {
-            Thread.sleep(1000);
             Clock ++;
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
     }
 
-    static public void Tick(int tick)
+    static public void Tick(int tick) //take in an integer value and sleep the current thread for that many seconds
     {
 
         try {
@@ -28,5 +23,5 @@ public class Clock
     static public int getTime()
     {
         return Clock;
-    }
+    } //return time elapsed
 }

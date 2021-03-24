@@ -10,9 +10,9 @@ public class Main {
     public static void main(String[] args) {
 
         Scheduler scheduler = new Scheduler();
-        scheduler.OutputToFile("", false);
+        scheduler.OutputToFile("", false); //clear output file
 
-        Thread SchedulerThread = new Thread(scheduler);
+        Thread SchedulerThread = new Thread(scheduler); //declare thread to run scheduler
         SchedulerThread.start(); //starts scheduling thread
 
         try {

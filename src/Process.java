@@ -6,7 +6,6 @@ public class Process implements Runnable{
     private int readyTime; //when the process is ready
     private int serviceTime; //total CPU usage required by each process
     private boolean started;
-    //private int processQuantum;
 
     public Process()
     {
@@ -41,6 +40,7 @@ public class Process implements Runnable{
     public boolean getStarted(){ return started;}
     public void setStarted(boolean isStarted){ this.started = isStarted; }
 
+    //run function decrements the service time by 1 when called
     public void run()
     {
         if(started)
